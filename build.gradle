@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets
 
 buildscript {
   repositories {
+    maven { url 'https://maven.aliyun.com/repository/public/' }
     mavenCentral()
     jcenter()
     maven {
@@ -53,6 +54,7 @@ spotless {
 allprojects {
 
   repositories {
+    maven { url 'https://maven.aliyun.com/repository/public/' }
     mavenCentral()
   }
 
@@ -786,6 +788,9 @@ project(':core') {
     testCompile libs.scalatest
     testCompile libs.slf4jlog4j
     testCompile libs.jfreechart
+
+    implementation("org.slf4j:slf4j-api:1.7.5")
+    implementation("org.slf4j:slf4j-log4j12:1.7.5")
   }
 
   scoverage {
