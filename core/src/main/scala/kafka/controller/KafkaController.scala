@@ -149,9 +149,11 @@ class KafkaController(val config: KafkaConfig,
     zkClient.registerStateChangeHandler(new StateChangeHandler {
       override val name: String = StateChangeHandlers.ControllerHandler
       override def afterInitializingSession(): Unit = {
+        // zk重新连接上后再触发leader选举
         eventManager.put(RegisterBrokerAndReelect)
       }
       override def beforeInitializingSession(): Unit = {
+        // 是为了在controller掉线重连时清空相应的信息?
         val queuedEvent = eventManager.clearAndPut(Expire)
 
         // Block initialization of the new session until the expiration event is being handled,
@@ -1298,6 +1300,7 @@ class KafkaController(val config: KafkaConfig,
 
   private def triggerControllerMove(): Unit = {
     activeControllerId = zkClient.getControllerId.getOrElse(-1)
+    // 如果原先选举出的controller不是自己，不处理
     if (!isActive) {
       warn("Controller has already moved when trying to trigger controller movement")
       return
@@ -1305,7 +1308,9 @@ class KafkaController(val config: KafkaConfig,
     try {
       val expectedControllerEpochZkVersion = controllerContext.epochZkVersion
       activeControllerId = -1
+      // 否则当前broker要做一些清理动作
       onControllerResignation()
+      // 同时把自己作为controller的信息删除掉，以便触发下一次controller选举
       zkClient.deleteController(expectedControllerEpochZkVersion)
     } catch {
       case _: ControllerMovedException =>
@@ -1314,9 +1319,13 @@ class KafkaController(val config: KafkaConfig,
   }
 
   private def maybeResign(): Unit = {
+    // 之前是controller
     val wasActiveBeforeChange = isActive
+    // 尝试获取controllerId
     zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler)
+    // 获取当前的controllerId
     activeControllerId = zkClient.getControllerId.getOrElse(-1)
+    // 如果之前是controller，现在不是，触发controller【辞职】流程
     if (wasActiveBeforeChange && !isActive) {
       onControllerResignation()
     }
@@ -1357,6 +1366,7 @@ class KafkaController(val config: KafkaConfig,
       case t: Throwable =>
         error(s"Error while electing or becoming controller on broker ${config.brokerId}. " +
           s"Trigger controller movement immediately", t)
+        // controller选举过程中如果发生了异常，走该方法
         triggerControllerMove()
     }
   }
