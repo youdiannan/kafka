@@ -234,6 +234,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
 
         /* start scheduler */
         kafkaScheduler = new KafkaScheduler(config.backgroundThreads)
+        // 创建scheduledThreadPool
         kafkaScheduler.startup()
 
         /* create and configure metrics */
@@ -258,6 +259,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
 
         /* start log manager */
         logManager = LogManager(config, initialOfflineDirs, zkClient, brokerState, kafkaScheduler, time, brokerTopicStats, logDirFailureChannel)
+        // todo 日志清理、刷缓存等等
         logManager.startup()
 
         metadataCache = new MetadataCache(config.brokerId)

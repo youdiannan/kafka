@@ -488,6 +488,7 @@ class KafkaApis(val requestChannel: RequestChannel,
     val produceRequest = request.body[ProduceRequest]
     val numBytesAppended = request.header.toStruct.sizeOf + request.sizeOfBodyInBytes
 
+    // 事务消息
     if (produceRequest.hasTransactionalRecords) {
       val isAuthorizedTransactional = produceRequest.transactionalId != null &&
         authorize(request.context, WRITE, TRANSACTIONAL_ID, produceRequest.transactionalId)
@@ -509,6 +510,8 @@ class KafkaApis(val requestChannel: RequestChannel,
     val authorizedTopics = filterAuthorized(request.context, WRITE, TOPIC,
       produceRequest.partitionRecordsOrFail.asScala.toSeq.map(_._1.topic))
 
+    // memoryRecords 持有的是byteBuffer
+    // topicPartition - batch - record
     for ((topicPartition, memoryRecords) <- produceRequest.partitionRecordsOrFail.asScala) {
       if (!authorizedTopics.contains(topicPartition.topic))
         unauthorizedTopicResponses += topicPartition -> new PartitionResponse(Errors.TOPIC_AUTHORIZATION_FAILED)
@@ -594,6 +597,7 @@ class KafkaApis(val requestChannel: RequestChannel,
       val internalTopicsAllowed = request.header.clientId == AdminUtils.AdminClientId
 
       // call the replica manager to append messages to the replicas
+      // ReplicaManager 负责日志
       replicaManager.appendRecords(
         timeout = produceRequest.timeout.toLong,
         requiredAcks = produceRequest.acks,
@@ -712,6 +716,7 @@ class KafkaApis(val requestChannel: RequestChannel,
                 new FetchResponse.PartitionData[BaseRecords](partitionData.error, partitionData.highWatermark,
                   partitionData.lastStableOffset, partitionData.logStartOffset,
                   partitionData.preferredReadReplica, partitionData.abortedTransactions,
+                  // lazy convert 节省内存
                   new LazyDownConversionRecords(tp, unconvertedRecords, magic, fetchContext.getFetchOffset(tp).get, time))
               } catch {
                 case e: UnsupportedCompressionTypeException =>

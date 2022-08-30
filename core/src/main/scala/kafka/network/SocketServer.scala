@@ -810,6 +810,7 @@ private[kafka] class Processor(val id: Int,
       while (isRunning) {
         try {
           // setup any new connections that have been queued up
+          // 注册连接
           configureNewConnections()
           // register any new responses for writing
           processNewResponses()

@@ -254,6 +254,7 @@ class LogManager(logDirs: Seq[File],
 
   private def loadLog(logDir: File, recoveryPoints: Map[TopicPartition, Long], logStartOffsets: Map[TopicPartition, Long]): Unit = {
     debug(s"Loading log '${logDir.getName}'")
+    // 根据日志目录名解析对应的TopicPartition，名称规范Topic-Partition.后缀名
     val topicPartition = Log.parseTopicPartitionName(logDir)
     val config = topicConfigs.getOrElse(topicPartition.topic, currentDefaultConfig)
     val logRecoveryPoint = recoveryPoints.getOrElse(topicPartition, 0L)
@@ -272,6 +273,7 @@ class LogManager(logDirs: Seq[File],
       logDirFailureChannel = logDirFailureChannel)
 
     if (logDir.getName.endsWith(Log.DeleteDirSuffix)) {
+      // 删除
       addLogToBeDeleted(log)
     } else {
       val previous = {
@@ -309,6 +311,7 @@ class LogManager(logDirs: Seq[File],
 
         val cleanShutdownFile = new File(dir, Log.CleanShutdownFile)
 
+        // 干净的关闭，不需要再回复
         if (cleanShutdownFile.exists) {
           debug(s"Found clean shutdown file. Skipping recovery for all logs in data directory: ${dir.getAbsolutePath}")
         } else {
@@ -1058,7 +1061,9 @@ object LogManager {
     val defaultLogConfig = LogConfig(defaultProps)
 
     // read the log configurations from zookeeper
+    // 从zk获取Log配置
     val (topicConfigs, failed) = zkClient.getLogConfigs(
+      // 从zk获取所有topic /brokers/topics
       zkClient.getAllTopicsInCluster(),
       defaultProps
     )

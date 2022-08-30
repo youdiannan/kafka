@@ -195,6 +195,7 @@ public class Struct {
      * @throws SchemaException If no such field exists
      */
     public Object get(String name) {
+        // 从schema中获取对应字段定义，例如该字段是第几个，有没有默认值之类
         BoundField field = schema.get(name);
         if (field == null)
             throw new SchemaException("No such field: " + name);

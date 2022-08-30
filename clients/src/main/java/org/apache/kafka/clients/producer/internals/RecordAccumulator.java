@@ -209,6 +209,7 @@ public final class RecordAccumulator {
             }
 
             byte maxUsableMagic = apiVersions.maxUsableProduceMagic();
+            // 取最大的batchSize
             int size = Math.max(this.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(maxUsableMagic, compression, key, value, headers));
             log.trace("Allocating a new {} byte message buffer for topic {} partition {}", size, tp.topic(), tp.partition());
             buffer = free.allocate(size, maxTimeToBlock);
@@ -221,12 +222,14 @@ public final class RecordAccumulator {
                     throw new KafkaException("Producer closed while send in progress");
 
                 RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callback, dq, nowMs);
+                // 这里还没有创建新的batch，所以如果不为空的话说明有其他线程创建了新的batch
                 if (appendResult != null) {
                     // Somebody else found us a batch, return the one we waited for! Hopefully this doesn't happen often...
                     return appendResult;
                 }
 
                 MemoryRecordsBuilder recordsBuilder = recordsBuilder(buffer, maxUsableMagic);
+                // 新建batch
                 ProducerBatch batch = new ProducerBatch(tp, recordsBuilder, nowMs);
                 FutureRecordMetadata future = Objects.requireNonNull(batch.tryAppend(timestamp, key, value, headers,
                         callback, nowMs));

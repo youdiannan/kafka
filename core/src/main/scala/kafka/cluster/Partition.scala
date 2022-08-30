@@ -787,6 +787,7 @@ class Partition(val topicPartition: TopicPartition,
       // avoid unnecessary collection generation
       var newHighWatermark = leaderLog.logEndOffsetMetadata
       remoteReplicasMap.values.foreach { replica =>
+        // 取replica中最小的LSO
         if (replica.logEndOffsetMetadata.messageOffset < newHighWatermark.messageOffset &&
           (curTime - replica.lastCaughtUpTimeMs <= replicaLagTimeMaxMs || inSyncReplicaIds.contains(replica.brokerId))) {
           newHighWatermark = replica.logEndOffsetMetadata
@@ -967,13 +968,16 @@ class Partition(val topicPartition: TopicPartition,
   }
 
   def appendRecordsToLeader(records: MemoryRecords, origin: AppendOrigin, requiredAcks: Int): LogAppendInfo = {
+    // 为什么要加读锁，避免同时appendLog？
     val (info, leaderHWIncremented) = inReadLock(leaderIsrUpdateLock) {
       leaderLogIfLocal match {
+          // 若当前broker持有的log是leader
         case Some(leaderLog) =>
           val minIsr = leaderLog.config.minInSyncReplicas
           val inSyncSize = inSyncReplicaIds.size
 
           // Avoid writing to leader if there are not enough insync replicas to make it safe
+          // 若要求写入全部follower，但isr小于最低要求
           if (inSyncSize < minIsr && requiredAcks == -1) {
             throw new NotEnoughReplicasException(s"The size of the current ISR $inSyncReplicaIds " +
               s"is insufficient to satisfy the min.isr requirement of $minIsr for partition $topicPartition")
@@ -986,6 +990,7 @@ class Partition(val topicPartition: TopicPartition,
           (info, maybeIncrementLeaderHW(leaderLog))
 
         case None =>
+          // 也就是说生产者发送消息时应该发送到topic的leader副本？
           throw new NotLeaderForPartitionException("Leader not local for partition %s on broker %d"
             .format(topicPartition, localBrokerId))
       }

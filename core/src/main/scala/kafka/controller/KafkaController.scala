@@ -140,6 +140,7 @@ class KafkaController(val config: KafkaConfig,
   def epoch: Int = controllerContext.epoch
 
   /**
+   * 仅仅监听session过期事件并进行leader选举
    * Invoked when the controller module of a Kafka server is started up. This does not assume that the current broker
    * is the controller. It merely registers the session expiration listener and starts the controller leader
    * elector
@@ -1334,6 +1335,7 @@ class KafkaController(val config: KafkaConfig,
     }
 
     try {
+      // 尝试成为controller，失败必抛异常
       val (epoch, epochZkVersion) = zkClient.registerControllerAndIncrementControllerEpoch(config.brokerId)
       controllerContext.epoch = epoch
       controllerContext.epochZkVersion = epochZkVersion

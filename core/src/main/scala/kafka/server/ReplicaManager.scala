@@ -561,6 +561,7 @@ class ReplicaManager(val config: KafkaConfig,
                     recordConversionStatsCallback: Map[TopicPartition, RecordConversionStats] => Unit = _ => ()): Unit = {
     if (isValidRequiredAcks(requiredAcks)) {
       val sTime = time.milliseconds
+      // 追加到本地日志
       val localProduceResults = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
         origin, entriesPerPartition, requiredAcks)
       debug("Produce to local log in %d ms".format(time.milliseconds - sTime))
@@ -573,6 +574,7 @@ class ReplicaManager(val config: KafkaConfig,
                     result.info.logStartOffset, result.info.recordErrors.asJava, result.info.errorMessage)) // response status
       }
 
+      // 更新统计数据
       recordConversionStatsCallback(localProduceResults.map { case (k, v) => k -> v.info.recordConversionStats })
 
       if (delayedProduceRequestRequired(requiredAcks, entriesPerPartition, localProduceResults)) {
@@ -868,6 +870,7 @@ class ReplicaManager(val config: KafkaConfig,
       } else {
         try {
           val partition = getPartitionOrException(topicPartition, expectLeader = true)
+          // 先写到leader副本中
           val info = partition.appendRecordsToLeader(records, origin, requiredAcks)
           val numAppendedMessages = info.numMessages
 
@@ -1277,6 +1280,7 @@ class ReplicaManager(val config: KafkaConfig,
 
             case HostedPartition.None =>
               val partition = Partition(topicPartition, time, this)
+              // 成为leader或follower时，维护自己的online partition
               allPartitions.putIfNotExists(topicPartition, HostedPartition.Online(partition))
               Some(partition)
           }

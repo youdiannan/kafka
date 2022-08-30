@@ -275,6 +275,7 @@ class Log(@volatile private var _dir: File,
 
     initializeLeaderEpochCache()
 
+    // 加载日志段
     val nextOffset = loadSegments()
 
     /* Calculate the offset of the next message */
@@ -596,15 +597,18 @@ class Log(@volatile private var _dir: File,
     for (file <- dir.listFiles.sortBy(_.getName) if file.isFile) {
       if (isIndexFile(file)) {
         // if it is an index file, make sure it has a corresponding .log file
+        // 确保索引文件有对应的log文件
         val offset = offsetFromFile(file)
         val logFile = Log.logFile(dir, offset)
         if (!logFile.exists) {
+          // 没有对应的log文件，直接删除索引文件
           warn(s"Found an orphaned index file ${file.getAbsolutePath}, with no corresponding log file.")
           Files.deleteIfExists(file.toPath)
         }
       } else if (isLogFile(file)) {
         // if it's a log file, load the corresponding log segment
         val baseOffset = offsetFromFile(file)
+        // 时间索引文件不存在，需要新建？
         val timeIndexFileNewlyCreated = !Log.timeIndexFile(dir, baseOffset).exists()
         val segment = LogSegment.open(dir = dir,
           baseOffset = baseOffset,
@@ -702,6 +706,7 @@ class Log(@volatile private var _dir: File,
       // In case we encounter a segment with offset overflow, the retry logic will split it after which we need to retry
       // loading of segments. In that case, we also need to close all segments that could have been left open in previous
       // call to loadSegmentFiles().
+      // 关闭上一次操作中打开的logSegment对象
       logSegments.foreach(_.close())
       segments.clear()
       loadSegmentFiles()
@@ -721,6 +726,7 @@ class Log(@volatile private var _dir: File,
       activeSegment.resizeIndexes(config.maxIndexSize)
       nextOffset
     } else {
+       // 新启动的broker
        if (logSegments.isEmpty) {
           addSegment(LogSegment.open(dir = dir,
             baseOffset = 0,
@@ -770,6 +776,7 @@ class Log(@volatile private var _dir: File,
     // if we have the clean shutdown marker, skip recovery
     if (!hasCleanShutdownFile) {
       // okay we need to actually recover this log
+      // recoveryPoint之后的日志段
       val unflushed = logSegments(this.recoveryPoint, Long.MaxValue).iterator
       var truncated = false
 
@@ -1050,9 +1057,12 @@ class Log(@volatile private var _dir: File,
                      assignOffsets: Boolean,
                      leaderEpoch: Int): LogAppendInfo = {
     maybeHandleIOException(s"Error while appending records to $topicPartition in dir ${dir.getParent}") {
+      // 校验records
       val appendInfo = analyzeAndValidateRecords(records, origin)
 
       // return if we have no valid messages or if this is a duplicate of the last appended entry
+      // todo didn't see duplicate check
+      // 简单统计有效的记录数量
       if (appendInfo.shallowCount == 0)
         return appendInfo
 
@@ -1070,6 +1080,7 @@ class Log(@volatile private var _dir: File,
           val validateAndOffsetAssignResult = try {
             LogValidator.validateMessagesAndAssignOffsets(validRecords,
               topicPartition,
+              // 方法内会对应增加offset
               offset,
               time,
               now,
@@ -1092,6 +1103,7 @@ class Log(@volatile private var _dir: File,
           appendInfo.offsetOfMaxTimestamp = validateAndOffsetAssignResult.shallowOffsetOfMaxTimestamp
           appendInfo.lastOffset = offset.value - 1
           appendInfo.recordConversionStats = validateAndOffsetAssignResult.recordConversionStats
+          // log append time
           if (config.messageTimestampType == TimestampType.LOG_APPEND_TIME)
             appendInfo.logAppendTime = now
 
@@ -1142,6 +1154,7 @@ class Log(@volatile private var _dir: File,
             // In partial upgrade scenarios, we may get a temporary regression to the message format. In
             // order to ensure the safety of leader election, we clear the epoch cache so that we revert
             // to truncation by high watermark after the next leader election.
+            // todo
             leaderEpochCache.filter(_.nonEmpty).foreach { cache =>
               warn(s"Clearing leader epoch cache after unexpected append with message format v${batch.magic}")
               cache.clearAndFlush()
@@ -1156,6 +1169,7 @@ class Log(@volatile private var _dir: File,
         }
 
         // maybe roll the log if this segment is full
+        // 是否需要切换到下一个日志段
         val segment = maybeRoll(validRecords.sizeInBytes, appendInfo)
 
         val logOffsetMetadata = LogOffsetMetadata(
@@ -1181,6 +1195,7 @@ class Log(@volatile private var _dir: File,
           shallowOffsetOfMaxTimestamp = appendInfo.offsetOfMaxTimestamp,
           records = validRecords)
 
+        // todo 事务相关
         // Increment the log end offset. We do this immediately after the append because a
         // write to the transaction index below may fail and we want to ensure that the offsets
         // of future appends still grow monotonically. The resulting transaction index inconsistency
