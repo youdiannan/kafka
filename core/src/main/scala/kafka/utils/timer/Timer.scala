@@ -89,6 +89,7 @@ class SystemTimer(executorName: String,
     if (!timingWheel.add(timerTaskEntry)) {
       // Already expired or cancelled
       if (!timerTaskEntry.cancelled)
+        // 任务已经到期，立即执行
         taskExecutor.submit(timerTaskEntry.timerTask)
     }
   }
@@ -104,8 +105,10 @@ class SystemTimer(executorName: String,
     if (bucket != null) {
       writeLock.lock()
       try {
+        // bucket 可能是overflowTimingWheel的
         while (bucket != null) {
           timingWheel.advanceClock(bucket.getExpiration())
+          // overflowTimingWheel的bucket过期后，里面的任务要拿出来重新insert到低层的时间轮里
           bucket.flush(reinsert)
           bucket = delayQueue.poll()
         }

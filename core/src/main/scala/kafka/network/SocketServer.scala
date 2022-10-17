@@ -582,6 +582,7 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
    * Accept loop that checks for new connection attempts
    */
   def run(): Unit = {
+    // Acceptor只监听Accept事件
     serverChannel.register(nioSelector, SelectionKey.OP_ACCEPT)
     startupComplete()
     try {
@@ -613,6 +614,7 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
                         processors(currentProcessorIndex)
                       }
                       currentProcessorIndex += 1
+                      // 轮询将新连接分配到processor里去
                     } while (!assignNewConnection(socketChannel, processor, retriesLeft == 0))
                   }
                 } else
@@ -810,7 +812,7 @@ private[kafka] class Processor(val id: Int,
       while (isRunning) {
         try {
           // setup any new connections that have been queued up
-          // 注册连接
+          // 注册新连接的读事件
           configureNewConnections()
           // register any new responses for writing
           processNewResponses()
@@ -925,6 +927,7 @@ private[kafka] class Processor(val id: Int,
   }
 
   private def processCompletedReceives(): Unit = {
+    // poll过程中会处理SelectionKey，读取数据
     selector.completedReceives.asScala.foreach { receive =>
       try {
         openOrClosingChannel(receive.source) match {
@@ -956,7 +959,10 @@ private[kafka] class Processor(val id: Int,
                       apiVersionsRequest.data.clientSoftwareVersion))
                   }
                 }
+                // 加入到requestQueue
+                // KafkaRequestHandler从队列中获取请求并进行处理
                 requestChannel.sendRequest(req)
+                // 暂时不监听这个channel的任何事件？为了保证请求处理的顺序？
                 selector.mute(connectionId)
                 handleChannelMuteEvent(connectionId, ChannelMuteEvent.REQUEST_RECEIVED)
               }
@@ -1075,9 +1081,11 @@ private[kafka] class Processor(val id: Int,
   private def configureNewConnections(): Unit = {
     var connectionsProcessed = 0
     while (connectionsProcessed < connectionQueueSize && !newConnections.isEmpty) {
+      // 处理Acceptor分配过来的新连接
       val channel = newConnections.poll()
       try {
         debug(s"Processor $id listening to new connection from ${channel.socket.getRemoteSocketAddress}")
+        // 注册读事件
         selector.register(connectionId(channel.socket), channel)
         connectionsProcessed += 1
       } catch {

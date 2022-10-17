@@ -942,10 +942,13 @@ class ReplicaManager(val config: KafkaConfig,
     val isFromFollower = Request.isValidBrokerId(replicaId)
     val isFromConsumer = !(isFromFollower || replicaId == Request.FutureLocalReplicaId)
     val fetchIsolation = if (!isFromConsumer)
+      // follower 可以读取全部日志
       FetchLogEnd
     else if (isolationLevel == IsolationLevel.READ_COMMITTED)
+      // 事务
       FetchTxnCommitted
     else
+      // hw
       FetchHighWatermark
 
     // Restrict fetching to leader if request is from follower or from a client with older version (no ClientMetadata)

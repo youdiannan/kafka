@@ -378,6 +378,7 @@ class RequestChannel(val queueSize: Int, val metricNamePrefix : String) extends 
       trace(message)
     }
 
+    // 同一个processor才能找到对应的channel
     val processor = processors.get(response.processor)
     // The processor may be null if it was shutdown. In this case, the connections
     // are closed, so the response is dropped.

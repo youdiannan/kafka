@@ -127,9 +127,11 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
 
     if (timerTaskEntry.cancelled) {
       // Cancelled
+      // 为什么不加锁，而是直接判断cancelled
       false
     } else if (expiration < currentTime + tickMs) {
       // Already expired
+      // 已到期，不再添加。同时上层认为该任务已到期，可以执行
       false
     } else if (expiration < currentTime + interval) {
       // Put in its own bucket
@@ -157,6 +159,7 @@ private[timer] class TimingWheel(tickMs: Long, wheelSize: Int, startMs: Long, ta
   // Try to advance the clock
   def advanceClock(timeMs: Long): Unit = {
     if (timeMs >= currentTime + tickMs) {
+      // 保留tickMs的整数倍
       currentTime = timeMs - (timeMs % tickMs)
 
       // Try to advance the clock of the overflow wheel if present
