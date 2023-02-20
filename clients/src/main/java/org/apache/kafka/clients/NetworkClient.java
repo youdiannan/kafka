@@ -545,6 +545,7 @@ public class NetworkClient implements KafkaClient {
             return responses;
         }
 
+        // 更新元数据
         long metadataTimeout = metadataUpdater.maybeUpdate(now);
         try {
             // 处理网络io：连接、读写
