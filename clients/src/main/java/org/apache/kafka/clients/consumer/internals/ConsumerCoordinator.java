@@ -531,6 +531,7 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
     private void updateGroupSubscription(Set<String> topics) {
         // the leader will begin watching for changes to any of the topics the group is interested in,
         // which ensures that all metadata changes will eventually be seen
+        // 首次
         if (this.subscriptions.groupSubscribe(topics))
             metadata.requestUpdateForNewTopics();
 

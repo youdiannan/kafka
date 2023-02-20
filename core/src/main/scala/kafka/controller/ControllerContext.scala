@@ -214,6 +214,7 @@ class ControllerContext {
     brokerIds.flatMap { brokerId =>
       partitionAssignments.flatMap {
         case (topic, topicReplicaAssignment) => topicReplicaAssignment.collect {
+              // todo 重分配过程没找到。看着是已经知道了重分配的结果
           case (partition, partitionAssignment) if partitionAssignment.replicas.contains(brokerId) =>
             PartitionAndReplica(new TopicPartition(topic, partition), brokerId)
         }

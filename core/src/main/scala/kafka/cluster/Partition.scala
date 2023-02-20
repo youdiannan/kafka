@@ -787,7 +787,7 @@ class Partition(val topicPartition: TopicPartition,
       // avoid unnecessary collection generation
       var newHighWatermark = leaderLog.logEndOffsetMetadata
       remoteReplicasMap.values.foreach { replica =>
-        // 取replica中最小的LSO
+        // 取replica中最小的LEO
         if (replica.logEndOffsetMetadata.messageOffset < newHighWatermark.messageOffset &&
           (curTime - replica.lastCaughtUpTimeMs <= replicaLagTimeMaxMs || inSyncReplicaIds.contains(replica.brokerId))) {
           newHighWatermark = replica.logEndOffsetMetadata
@@ -851,6 +851,7 @@ class Partition(val topicPartition: TopicPartition,
       needsShrinkIsr()
     }
     val leaderHWIncremented = needsIsrUpdate && inWriteLock(leaderIsrUpdateLock) {
+      // 如果是leader副本才实际执行操作
       leaderLogIfLocal match {
         case Some(leaderLog) =>
           val outOfSyncReplicaIds = getOutOfSyncReplicas(replicaLagTimeMaxMs)
@@ -887,6 +888,7 @@ class Partition(val topicPartition: TopicPartition,
   }
 
   private def needsShrinkIsr(): Boolean = {
+    // 如果是leader副本才往下执行操作
     if (isLeader) {
       val outOfSyncReplicaIds = getOutOfSyncReplicas(replicaLagTimeMaxMs)
       outOfSyncReplicaIds.nonEmpty

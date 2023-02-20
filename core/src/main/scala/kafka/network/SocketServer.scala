@@ -600,6 +600,7 @@ private[kafka] class Acceptor(val endPoint: EndPoint,
 
                 if (key.isAcceptable) {
                   accept(key).foreach { socketChannel =>
+                    // 给socketChannel分配processor
                     // Assign the channel to the next processor (using round-robin) to which the
                     // channel can be added without blocking. If newConnections queue is full on
                     // all processors, block until the last one is able to accept a connection.
@@ -961,6 +962,8 @@ private[kafka] class Processor(val id: Int,
                 }
                 // 加入到requestQueue
                 // KafkaRequestHandler从队列中获取请求并进行处理
+                // requestChannel和endPoint是1:1的关系。具体的IO线程（实际执行处理动作的线程）共用一个requestChannel
+                // 即 Processor读取输入，包装成Request后，由网络IO线程共同从队列中获取，保证处理速度
                 requestChannel.sendRequest(req)
                 // 暂时不监听这个channel的任何事件？为了保证请求处理的顺序？
                 selector.mute(connectionId)

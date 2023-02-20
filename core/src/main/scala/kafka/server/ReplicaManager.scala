@@ -511,6 +511,7 @@ class ReplicaManager(val config: KafkaConfig,
         Left(Errors.KAFKA_STORAGE_ERROR)
 
       case HostedPartition.None if metadataCache.contains(topicPartition) =>
+        // fetch的这台机器上没有对应的副本
         if (expectLeader) {
           // The topic exists, but this broker is no longer a replica of it, so we return NOT_LEADER which
           // forces clients to refresh metadata to find the new location. This can happen, for example,
@@ -939,7 +940,9 @@ class ReplicaManager(val config: KafkaConfig,
                     responseCallback: Seq[(TopicPartition, FetchPartitionData)] => Unit,
                     isolationLevel: IsolationLevel,
                     clientMetadata: Option[ClientMetadata]): Unit = {
+    // 来自follower replica的请求，同步用
     val isFromFollower = Request.isValidBrokerId(replicaId)
+    // 来自消费者的请求
     val isFromConsumer = !(isFromFollower || replicaId == Request.FutureLocalReplicaId)
     val fetchIsolation = if (!isFromConsumer)
       // follower 可以读取全部日志
@@ -952,6 +955,7 @@ class ReplicaManager(val config: KafkaConfig,
       FetchHighWatermark
 
     // Restrict fetching to leader if request is from follower or from a client with older version (no ClientMetadata)
+    // follower只允许从leader读取
     val fetchOnlyFromLeader = isFromFollower || (isFromConsumer && clientMetadata.isEmpty)
     def readFromLog(): Seq[(TopicPartition, LogReadResult)] = {
       val result = readFromLocalLog(
@@ -996,6 +1000,7 @@ class ReplicaManager(val config: KafkaConfig,
       }
       responseCallback(fetchPartitionData)
     } else {
+      // todo 延迟返回日志读取结果
       // construct the fetch results from the read results
       val fetchPartitionStatus = new mutable.ArrayBuffer[(TopicPartition, FetchPartitionStatus)]
       fetchInfos.foreach { case (topicPartition, partitionData) =>

@@ -232,6 +232,7 @@ class KafkaController(val config: KafkaConfig,
     info("Deleting isr change notifications")
     zkClient.deleteIsrChangeNotifications(controllerContext.epochZkVersion)
     info("Initializing controller context")
+    // 从zk获取topic、partition的相关信息
     initializeControllerContext()
     info("Fetching topic deletions in progress")
     val (topicsToBeDeleted, topicsIneligibleForDeletion) = fetchTopicDeletionsInProgress()
@@ -358,13 +359,16 @@ class KafkaController(val config: KafkaConfig,
     // Send update metadata request to all the new brokers in the cluster with a full set of partition states for initialization.
     // In cases of controlled shutdown leaders will not be elected when a new broker comes up. So at least in the
     // common controlled shutdown case, the metadata will reach the new brokers faster.
+    // 给新加入的broker发送topicPartition的分配情况？
     sendUpdateMetadataRequest(newBrokers, controllerContext.partitionLeadershipInfo.keySet)
     // the very first thing to do when a new broker comes up is send it the entire list of partitions that it is
     // supposed to host. Based on that the broker starts the high watermark threads for the input list of partitions
+    // 有新的broker加入时，先告知它要持有的partition。然后对应的broker再开始拉消息？
     val allReplicasOnNewBrokers = controllerContext.replicasOnBrokers(newBrokersSet)
     replicaStateMachine.handleStateChanges(allReplicasOnNewBrokers.toSeq, OnlineReplica)
     // when a new broker comes up, the controller needs to trigger leader election for all new and offline partitions
     // to see if these brokers can become leaders for some/all of those
+    // 触发partition的leader选举
     partitionStateMachine.triggerOnlinePartitionStateChange()
     // check if reassignment of some partitions need to be restarted
     maybeResumeReassignments { (_, assignment) =>
@@ -1231,7 +1235,9 @@ class KafkaController(val config: KafkaConfig,
   }
 
   private def processStartup(): Unit = {
+    // 启动时注册ZNodeChangeHandler
     zkClient.registerZNodeChangeHandlerAndCheckExistence(controllerChangeHandler)
+    // 并开启选举流程
     elect()
   }
 
@@ -1339,6 +1345,7 @@ class KafkaController(val config: KafkaConfig,
      * createEphemeralPath method from getting into an infinite loop if this broker is already the controller.
      */
     if (activeControllerId != -1) {
+      // 说明已经有leader了
       debug(s"Broker $activeControllerId has been elected as the controller, so stopping the election process.")
       return
     }
@@ -1355,6 +1362,7 @@ class KafkaController(val config: KafkaConfig,
 
       onControllerFailover()
     } catch {
+      // 说明已经有其他broker成为了controller
       case e: ControllerMovedException =>
         maybeResign()
 
@@ -1398,6 +1406,7 @@ class KafkaController(val config: KafkaConfig,
     deadBrokerIds.foreach(controllerChannelManager.removeBroker)
     if (newBrokerIds.nonEmpty) {
       controllerContext.addLiveBrokers(newBrokerAndEpochs)
+      // 针对新加入的brokers，controller需要做些动作
       onBrokerStartup(newBrokerIdsSorted)
     }
     if (bouncedBrokerIds.nonEmpty) {
@@ -1843,6 +1852,7 @@ class KafkaController(val config: KafkaConfig,
           processUpdateMetadataResponseReceived(response, brokerId)
         case TopicDeletionStopReplicaResponseReceived(replicaId, requestError, partitionErrors) =>
           processTopicDeletionStopReplicaResponseReceived(replicaId, requestError, partitionErrors)
+        // 监听/brokers节点
         case BrokerChange =>
           processBrokerChange()
         case BrokerModifications(brokerId) =>

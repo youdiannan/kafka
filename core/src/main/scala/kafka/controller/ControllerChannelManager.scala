@@ -66,6 +66,7 @@ class ControllerChannelManager(controllerContext: ControllerContext,
   )
 
   def startup() = {
+    // 建立和broker的连接
     controllerContext.liveOrShuttingDownBrokers.foreach(addNewBroker)
 
     brokerLock synchronized {

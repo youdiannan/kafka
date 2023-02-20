@@ -369,6 +369,9 @@ class Log(@volatile private var _dir: File,
 
       // Ensure that the high watermark increases monotonically. We also update the high watermark when the new
       // offset metadata is on a newer segment, which occurs whenever the log is rolled to a new segment.
+      // 确保hw单调增长。
+      // 例如：原集群中有台机器突然宕机，ISR中剔除该机器，并更新hw。但是到一段时间后，该机器重新上线加入集群，这时就可能出现这台机器的hw低的情况。
+      // 如果再直接取最低的hw，那么就可能会出现之前看到过的offset大的消息突然又看不见了。
       if (oldHighWatermark.messageOffset < newHighWatermark.messageOffset ||
         (oldHighWatermark.messageOffset == newHighWatermark.messageOffset && oldHighWatermark.onOlderSegment(newHighWatermark))) {
         updateHighWatermarkMetadata(newHighWatermark)

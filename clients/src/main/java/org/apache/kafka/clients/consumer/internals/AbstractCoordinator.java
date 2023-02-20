@@ -233,6 +233,7 @@ public abstract class AbstractCoordinator implements Closeable {
                 throw fatalException;
             }
             final RequestFuture<Void> future = lookupCoordinator();
+            // 阻塞直到findCoordinator返回结果或抛异常
             client.poll(future, timer);
 
             if (!future.isDone()) {
@@ -265,6 +266,7 @@ public abstract class AbstractCoordinator implements Closeable {
                 log.debug("No broker available to send FindCoordinator request");
                 return RequestFuture.noBrokersAvailable();
             } else {
+                // 发送findCoordinator请求，内部有listener处理coordinator更新逻辑
                 findCoordinatorFuture = sendFindCoordinatorRequest(node);
                 // remember the exception even after the future is cleared so that
                 // it can still be thrown by the ensureCoordinatorReady caller

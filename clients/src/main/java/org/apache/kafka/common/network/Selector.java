@@ -388,6 +388,7 @@ public class Selector implements Selectable, AutoCloseable {
      * @param send The request to send
      */
     public void send(Send send) {
+        // nodeId
         String connectionId = send.destination();
         KafkaChannel channel = openOrClosingChannelOrFail(connectionId);
         if (closingChannels.containsKey(connectionId)) {
@@ -577,6 +578,7 @@ public class Selector implements Selectable, AutoCloseable {
                 //previous completed receive then read from it
                 if (channel.ready() && (key.isReadable() || channel.hasBytesBuffered()) && !hasCompletedReceive(channel)
                         && !explicitlyMutedChannels.contains(channel)) {
+                    // 处理读事件
                     attemptRead(channel);
                 }
 
@@ -594,6 +596,7 @@ public class Selector implements Selectable, AutoCloseable {
 
                 long nowNanos = channelStartTimeNanos != 0 ? channelStartTimeNanos : currentTimeNanos;
                 try {
+                    // 处理写事件：待写的数据被持有在KafkaChannel中，以Send的形式存在
                     attemptWrite(key, channel, nowNanos);
                 } catch (Exception e) {
                     sendFailed = true;

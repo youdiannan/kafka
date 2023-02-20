@@ -125,6 +125,7 @@ public class ConsumerNetworkClient implements Closeable {
         RequestFutureCompletionHandler completionHandler = new RequestFutureCompletionHandler();
         ClientRequest clientRequest = client.newClientRequest(node.idString(), requestBuilder, now, true,
                 requestTimeoutMs, completionHandler);
+        // 没有实际发送
         unsent.put(node, clientRequest);
 
         // wakeup the client in case it is blocking in poll so that we can send the queued request
@@ -249,6 +250,8 @@ public class ConsumerNetworkClient implements Closeable {
             handlePendingDisconnects();
 
             // send all the requests we can send now
+            // 把Send加入底层的InFlightRequest里，同时给KafkaChannel设置send。
+            // 如果设置失败，则此次发送失败：有还未发送完的请求
             long pollDelayMs = trySend(timer.currentTimeMs());
 
             // check whether the poll is still needed by the caller. Note that if the expected completion
@@ -259,8 +262,10 @@ public class ConsumerNetworkClient implements Closeable {
                 long pollTimeout = Math.min(timer.remainingMs(), pollDelayMs);
                 if (client.inFlightRequestCount() == 0)
                     pollTimeout = Math.min(pollTimeout, retryBackoffMs);
+                // 处理读写事件
                 client.poll(pollTimeout, timer.currentTimeMs());
             } else {
+                // 处理读写事件
                 client.poll(0, timer.currentTimeMs());
             }
             timer.update();
@@ -293,6 +298,7 @@ public class ConsumerNetworkClient implements Closeable {
         // called without the lock to avoid deadlock potential if handlers need to acquire locks
         firePendingCompletedRequests();
 
+        // 更新元数据
         metadata.maybeThrowAnyException();
     }
 

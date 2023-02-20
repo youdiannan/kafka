@@ -285,6 +285,7 @@ class KafkaApis(val requestChannel: RequestChannel,
     CoreUtils.swallow(replicaManager.replicaFetcherManager.shutdownIdleFetcherThreads(), this)
   }
 
+  // 新加入集群时，controller会给新加入的broker发送UpdateMetadataRequest，并带上Partition相关信息
   def handleUpdateMetadataRequest(request: RequestChannel.Request): Unit = {
     val correlationId = request.header.correlationId
     val updateMetadataRequest = request.body[UpdateMetadataRequest]
